@@ -8,35 +8,51 @@
 #ifdef __AVR_ATtiny85__
 #endif
 
-#define SIG0 'N'
-#define SIG1 'F'
+#define PING 'N'
+#define PONG 'F'
 #define LED_ON() ( PORTB |= _BV(PB4) )
 #define LED_OFF() ( PORTB &= ~(_BV(PB4)) )
+#define LED_FLASH() { LED_ON(); _delay_ms(500); LED_OFF(); }
 
 int main ()
 {
-  softuart_init();
+  softuart_init(0);
+#if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
+  softuart_init(1);
+#endif
   DDRB |= _BV(PB4); // LED pin
-  softuart_turn_rx_on();
   sei();
+
+  _delay_ms(1000);
+  softuart_putchar(0, PING);
 
 	while(1) {
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
-    while (softuart_transmit_busy());
-    softuart_putchar(SIG0);
-    LED_ON();
 
-    _delay_ms(1000);
+    if (softuart_kbhit(0)) {
+      char b = softuart_getchar(0);
+      if (b == PONG) {
+        LED_FLASH();
+        softuart_putchar(1, PING);
+      }
+    }
 
-    while (softuart_transmit_busy());
-    LED_OFF();
-    softuart_putchar(SIG1);
+    else if (softuart_kbhit(1)) {
+      char b = softuart_getchar(1);
+      if (b == PONG) {
+        LED_FLASH();
+        softuart_putchar(0, PING);
+      }
+    }
 
-    _delay_ms(1000);
 #elif defined (__AVR_ATtiny85__)
-    char b = softuart_getchar();
-    if (b == SIG0) LED_ON();
-    if (b == SIG1) LED_OFF();
+    if (softuart_kbhit(0)) {
+      char b = softuart_getchar(0);
+      if (b == PING) {
+        LED_FLASH();
+        softuart_putchar(0, PONG);
+      }
+    }
 #endif
 	}
 }

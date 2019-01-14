@@ -149,105 +149,129 @@ V0.4 (10/2010)
 
 // startbit and stopbit parsed internally (see ISR)
 #define RX_NUM_OF_BITS (8)
-static volatile char           inbuf[SOFTUART_IN_BUF_SIZE];
-static volatile unsigned char  qin;
-static unsigned char           qout;
-static volatile unsigned char  flag_rx_off;
-static volatile unsigned char  flag_rx_ready;
+static volatile char           inbuf[2][SOFTUART_IN_BUF_SIZE];
+static volatile unsigned char  qin[2];
+static unsigned char           qout[2];
+static volatile unsigned char  flag_rx_off[2];
+static volatile unsigned char  flag_rx_ready[2];
+static volatile unsigned char  flag_rx_off[2];
+static volatile unsigned char  flag_rx_ready[2];
 
 // 1 Startbit, 8 Databits, 1 Stopbit = 10 Bits/Frame
 #define TX_NUM_OF_BITS (10)
-static volatile unsigned char  flag_tx_busy;
-static volatile unsigned char  timer_tx_ctr;
-static volatile unsigned char  bits_left_in_tx;
-static volatile unsigned short internal_tx_buffer; /* ! mt: was type uchar - this was wrong */
+static volatile unsigned char  flag_tx_busy[2];
+static volatile unsigned char  timer_tx_ctr[2];
+static volatile unsigned char  bits_left_in_tx[2];
+static volatile unsigned short internal_tx_buffer[2]; /* ! mt: was type uchar - this was wrong */
 
-#define set_tx_pin_high()      ( SOFTUART_TXPORT |=  ( 1 << SOFTUART_TXBIT ) )
-#define set_tx_pin_low()       ( SOFTUART_TXPORT &= ~( 1 << SOFTUART_TXBIT ) )
-#define get_rx_pin_status()    ( SOFTUART_RXPIN  &   ( 1 << SOFTUART_RXBIT ) )
+void set_tx_pin_high(unsigned char i) {
+  switch(i) {
+    case 0: SOFTUART_TX0PORT |=  ( 1 << SOFTUART_TX0BIT ); break;
+    case 1: SOFTUART_TX1PORT |=  ( 1 << SOFTUART_TX1BIT ); break;
+  }
+}
+
+void set_tx_pin_low(unsigned char i) {
+  switch(i) {
+    case 0: SOFTUART_TX0PORT &=  ~( 1 << SOFTUART_TX0BIT ); break;
+    case 1: SOFTUART_TX1PORT &=  ~( 1 << SOFTUART_TX1BIT ); break;
+  }
+}
+
+unsigned char get_rx_pin_status(unsigned char i) {
+  switch(i) {
+    case 0: return SOFTUART_RX0PIN & ( 1 << SOFTUART_RX0BIT );
+    case 1: return SOFTUART_RX1PIN & ( 1 << SOFTUART_RX1BIT );
+  }
+  return 0;
+}
 
 ISR(SOFTUART_T_COMP_LABEL)
 {
-	static unsigned char flag_rx_waiting_for_stop_bit = SU_FALSE;
-	static unsigned char rx_mask;
+	static unsigned char flag_rx_waiting_for_stop_bit[2] = {SU_FALSE, SU_FALSE};
+	static unsigned char rx_mask[2];
 	
-	static unsigned char timer_rx_ctr;
-	static unsigned char bits_left_in_rx;
-	static unsigned char internal_rx_buffer;
+	static unsigned char timer_rx_ctr[2];
+	static unsigned char bits_left_in_rx[2];
+	static unsigned char internal_rx_buffer[2];
 	
-	unsigned char start_bit, flag_in;
-	unsigned char tmp;
+	unsigned char start_bit[2], flag_in[2];
+	unsigned char tmp[2];
 	
 	// Transmitter Section
-	if ( flag_tx_busy == SU_TRUE ) {
-		tmp = timer_tx_ctr;
-		if ( --tmp == 0 ) { // if ( --timer_tx_ctr <= 0 )
-			if ( internal_tx_buffer & 0x01 ) {
-				set_tx_pin_high();
-			}
-			else {
-				set_tx_pin_low();
-			}
-			internal_tx_buffer >>= 1;
-			tmp = 3; // timer_tx_ctr = 3;
-			if ( --bits_left_in_tx == 0 ) {
-				flag_tx_busy = SU_FALSE;
-			}
-		}
-		timer_tx_ctr = tmp;
-	}
+  for (unsigned char i = 0; i < SOFTUART_N; ++i) {
+    if ( flag_tx_busy[i] == SU_TRUE ) {
+      tmp[i] = timer_tx_ctr[i];
+      if ( --(tmp[i]) == 0 ) { // if ( --timer_tx_ctr <= 0 )
+        if ( internal_tx_buffer[i] & 0x01 ) {
+          set_tx_pin_high(i);
+        }
+        else {
+          set_tx_pin_low(i);
+        }
+        internal_tx_buffer[i] >>= 1;
+        tmp[i] = 3; // timer_tx_ctr = 3;
+        if ( --(bits_left_in_tx[i]) == 0 ) {
+          flag_tx_busy[i] = SU_FALSE;
+        }
+      }
+      timer_tx_ctr[i] = tmp[i];
+    }
 
-	// Receiver Section
-	if ( flag_rx_off == SU_FALSE ) {
-		if ( flag_rx_waiting_for_stop_bit ) {
-			if ( --timer_rx_ctr == 0 ) {
-				flag_rx_waiting_for_stop_bit = SU_FALSE;
-				flag_rx_ready = SU_FALSE;
-				inbuf[qin] = internal_rx_buffer;
-				if ( ++qin >= SOFTUART_IN_BUF_SIZE ) {
-					// overflow - reset inbuf-index
-					qin = 0;
-				}
-			}
-		}
-		else {  // rx_test_busy
-			if ( flag_rx_ready == SU_FALSE ) {
-				start_bit = get_rx_pin_status();
-				// test for start bit
-				if ( start_bit == 0 ) {
-					flag_rx_ready      = SU_TRUE;
-					internal_rx_buffer = 0;
-					timer_rx_ctr       = 4;
-					bits_left_in_rx    = RX_NUM_OF_BITS;
-					rx_mask            = 1;
-				}
-			}
-			else {  // rx_busy
-				tmp = timer_rx_ctr;
-				if ( --tmp == 0 ) { // if ( --timer_rx_ctr == 0 ) {
-					// rcv
-					tmp = 3;
-					flag_in = get_rx_pin_status();
-					if ( flag_in ) {
-						internal_rx_buffer |= rx_mask;
-					}
-					rx_mask <<= 1;
-					if ( --bits_left_in_rx == 0 ) {
-						flag_rx_waiting_for_stop_bit = SU_TRUE;
-					}
-				}
-				timer_rx_ctr = tmp;
-			}
-		}
-	}
+    // Receiver Section
+    if ( flag_rx_off[i] == SU_FALSE ) {
+      if ( flag_rx_waiting_for_stop_bit[i] ) {
+        if ( --(timer_rx_ctr[i]) == 0 ) {
+          flag_rx_waiting_for_stop_bit[i] = SU_FALSE;
+          flag_rx_ready[i] = SU_FALSE;
+          inbuf[i][qin[i]] = internal_rx_buffer[i];
+          if ( ++(qin[i]) >= SOFTUART_IN_BUF_SIZE ) {
+            // overflow - reset inbuf-index
+            qin[i] = 0;
+          }
+        }
+      }
+      else {  // rx_test_busy
+        if ( flag_rx_ready[i] == SU_FALSE ) {
+          start_bit[i] = get_rx_pin_status(i);
+          // test for start bit
+          if ( start_bit[i] == 0 ) {
+            flag_rx_ready[i]      = SU_TRUE;
+            internal_rx_buffer[i] = 0;
+            timer_rx_ctr[i]       = 4;
+            bits_left_in_rx[i]    = RX_NUM_OF_BITS;
+            rx_mask[i]            = 1;
+          }
+        }
+        else {  // rx_busy
+          tmp[i] = timer_rx_ctr[i];
+          if ( --(tmp[i]) == 0 ) { // if ( --timer_rx_ctr == 0 ) {
+            // rcv
+            tmp[i] = 3;
+            flag_in[i] = get_rx_pin_status(i);
+            if ( flag_in[i] ) {
+              internal_rx_buffer[i] |= rx_mask[i];
+            }
+            rx_mask[i] <<= 1;
+            if ( --(bits_left_in_rx[i]) == 0 ) {
+              flag_rx_waiting_for_stop_bit[i] = SU_TRUE;
+            }
+          }
+          timer_rx_ctr[i] = tmp[i];
+        }
+      }
+    }
+  }
 }
 
 static void io_init(void)
 {
-	// TX-Pin as output
-	SOFTUART_TXDDR |=  ( 1 << SOFTUART_TXBIT );
-	// RX-Pin as input
-	SOFTUART_RXDDR &= ~( 1 << SOFTUART_RXBIT );
+  // TX-Pin as output
+  SOFTUART_TX0DDR |=  ( 1 << SOFTUART_TX0BIT );
+  SOFTUART_TX1DDR |=  ( 1 << SOFTUART_TX1BIT );
+  // RX-Pin as input
+  SOFTUART_RX0DDR &= ~( 1 << SOFTUART_RX0BIT );
+  SOFTUART_RX1DDR &= ~( 1 << SOFTUART_RX1BIT );
 }
 
 static void timer_init(void)
@@ -269,13 +293,13 @@ static void timer_init(void)
 	SREG = sreg_tmp;
 }
 
-void softuart_init( void )
+void softuart_init( unsigned char i )
 {
-	flag_tx_busy  = SU_FALSE;
-	flag_rx_ready = SU_FALSE;
-	flag_rx_off   = SU_FALSE;
+	flag_tx_busy[i]  = SU_FALSE;
+	flag_rx_ready[i] = SU_FALSE;
+	flag_rx_off[i]   = SU_FALSE;
 	
-	set_tx_pin_high(); /* mt: set to high to avoid garbage on init */
+  set_tx_pin_high(i); /* mt: set to high to avoid garbage on init */
 
 	io_init();
 	timer_init();
@@ -288,74 +312,74 @@ static void idle(void)
 	// add watchdog-reset here if needed
 }
 
-void softuart_turn_rx_on( void )
+void softuart_turn_rx_on( unsigned char i )
 {
-	flag_rx_off = SU_FALSE;
+	flag_rx_off[i] = SU_FALSE;
 }
 
-void softuart_turn_rx_off( void )
+void softuart_turn_rx_off( unsigned char i )
 {
-	flag_rx_off = SU_TRUE;
+	flag_rx_off[i] = SU_TRUE;
 }
 
-char softuart_getchar( void )
+char softuart_getchar( unsigned char i )
 {
 	char ch;
 
-	while ( qout == qin ) {
+	while ( qout[i] == qin[i] ) {
 		idle();
 	}
-	ch = inbuf[qout];
-	if ( ++qout >= SOFTUART_IN_BUF_SIZE ) {
-		qout = 0;
+	ch = inbuf[i][qout[i]];
+	if ( ++(qout[i]) >= SOFTUART_IN_BUF_SIZE ) {
+		qout[i] = 0;
 	}
 	
 	return( ch );
 }
 
-unsigned char softuart_kbhit( void )
+unsigned char softuart_kbhit( unsigned char i)
 {
-	return( qin != qout );
+	return( qin[i] != qout[i] );
 }
 
-void softuart_flush_input_buffer( void )
+void softuart_flush_input_buffer( unsigned char i )
 {
-	qin  = 0;
-	qout = 0;
+	qin[i]  = 0;
+	qout[i] = 0;
 }
 	
-unsigned char softuart_transmit_busy( void ) 
+unsigned char softuart_transmit_busy( unsigned char i) 
 {
-	return ( flag_tx_busy == SU_TRUE ) ? 1 : 0;
+	return ( flag_tx_busy[i] == SU_TRUE ) ? 1 : 0;
 }
 
-void softuart_putchar( const char ch )
+void softuart_putchar( unsigned char i, const char ch )
 {
-	while ( flag_tx_busy == SU_TRUE ) {
+	while ( flag_tx_busy[i] == SU_TRUE ) {
 		; // wait for transmitter ready
 		  // add watchdog-reset here if needed;
 	}
 
 	// invoke_UART_transmit
-	timer_tx_ctr       = 3;
-	bits_left_in_tx    = TX_NUM_OF_BITS;
-	internal_tx_buffer = ( ch << 1 ) | 0x200;
-	flag_tx_busy       = SU_TRUE;
+	timer_tx_ctr[i]       = 3;
+	bits_left_in_tx[i]    = TX_NUM_OF_BITS;
+	internal_tx_buffer[i] = ( ch << 1 ) | 0x200;
+	flag_tx_busy[i]       = SU_TRUE;
 }
 	
-void softuart_puts( const char *s )
+void softuart_puts( unsigned char i, const char *s )
 {
 	while ( *s ) {
-		softuart_putchar( *s++ );
+		softuart_putchar( i, *s++ );
 	}
 }
 	
-void softuart_puts_p( const char *prg_s )
+void softuart_puts_p( unsigned char i, const char *prg_s )
 {
 	char c;
 
 	while ( ( c = pgm_read_byte( prg_s++ ) ) ) {
-		softuart_putchar(c);
+		softuart_putchar(i, c);
 	}
 }
 

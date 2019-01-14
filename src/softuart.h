@@ -6,13 +6,22 @@
 #define SOFTUART_BAUD_RATE      2400
 
 #if defined (__AVR_ATtiny25__) || defined (__AVR_ATtiny45__) || defined (__AVR_ATtiny85__)
-    #define SOFTUART_RXPIN   PINB
-    #define SOFTUART_RXDDR   DDRB
-    #define SOFTUART_RXBIT   PB0
+    #define SOFTUART_N 1
+    #define SOFTUART_RX0PIN   PINB
+    #define SOFTUART_RX0DDR   DDRB
+    #define SOFTUART_RX0BIT   PB0
 
-    #define SOFTUART_TXPORT  PORTB
-    #define SOFTUART_TXDDR   DDRB
-    #define SOFTUART_TXBIT   PB1
+    #define SOFTUART_TX0PORT  PORTB
+    #define SOFTUART_TX0DDR   DDRB
+    #define SOFTUART_TX0BIT   PB1
+
+    #define SOFTUART_RX1PIN   PINB
+    #define SOFTUART_RX1DDR   DDRB
+    #define SOFTUART_RX1BIT   PB0
+
+    #define SOFTUART_TX1PORT  PORTB
+    #define SOFTUART_TX1DDR   DDRB
+    #define SOFTUART_TX1BIT   PB1
 
     #define SOFTUART_T_COMP_LABEL      TIM0_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR0A
@@ -45,13 +54,13 @@
    || defined (__AVR_ATmega328P__) || defined (__AVR_ATmega328PA__) \
    || defined (__AVR_ATmega164P__) || defined (__AVR_ATmega164A__)
 
-    #define SOFTUART_RXPIN   PIND
-    #define SOFTUART_RXDDR   DDRD
-    #define SOFTUART_RXBIT   PD0
+    #define SOFTUART_RX0PIN   PIND
+    #define SOFTUART_RX0DDR   DDRD
+    #define SOFTUART_RX0BIT   PD0
 
-    #define SOFTUART_TXPORT  PORTD
-    #define SOFTUART_TXDDR   DDRD
-    #define SOFTUART_TXBIT   PD1
+    #define SOFTUART_TX0PORT  PORTD
+    #define SOFTUART_TX0DDR   DDRD
+    #define SOFTUART_TX0BIT   PD1
 
     #define SOFTUART_T_COMP_LABEL      TIMER0_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR0A
@@ -78,14 +87,23 @@
         #error "prescale unsupported"
     #endif
 #elif defined (__AVR_ATmega8__)
+    #define SOFTUART_N 2
 
-    #define SOFTUART_RXPIN   PIND
-    #define SOFTUART_RXDDR   DDRD
-    #define SOFTUART_RXBIT   PD0
+    #define SOFTUART_RX0PIN   PIND
+    #define SOFTUART_RX0DDR   DDRD
+    #define SOFTUART_RX0BIT   PD0
 
-    #define SOFTUART_TXPORT  PORTD
-    #define SOFTUART_TXDDR   DDRD
-    #define SOFTUART_TXBIT   PD1
+    #define SOFTUART_TX0PORT  PORTD
+    #define SOFTUART_TX0DDR   DDRD
+    #define SOFTUART_TX0BIT   PD1
+
+    #define SOFTUART_RX1PIN   PIND
+    #define SOFTUART_RX1DDR   DDRD
+    #define SOFTUART_RX1BIT   PD2
+
+    #define SOFTUART_TX1PORT  PORTD
+    #define SOFTUART_TX1DDR   DDRD
+    #define SOFTUART_TX1BIT   PD3
 
     #define SOFTUART_T_COMP_LABEL      TIMER1_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR1A
@@ -124,35 +142,35 @@
 #define SOFTUART_IN_BUF_SIZE     32
 
 // Init the Software Uart
-void softuart_init(void);
+void softuart_init(unsigned char);
 
 // Clears the contents of the input buffer.
-void softuart_flush_input_buffer( void );
+void softuart_flush_input_buffer( unsigned char );
 
 // Tests whether an input character has been received.
-unsigned char softuart_kbhit( void );
+unsigned char softuart_kbhit( unsigned char );
 
 // Reads a character from the input buffer, waiting if necessary.
-char softuart_getchar( void );
+char softuart_getchar( unsigned char );
 
 // To check if transmitter is busy
-unsigned char softuart_transmit_busy( void );
+unsigned char softuart_transmit_busy( unsigned char );
 
 // Writes a character to the serial port.
-void softuart_putchar( const char );
+void softuart_putchar( unsigned char, const char );
 
 // Turns on the receive function.
-void softuart_turn_rx_on( void );
+void softuart_turn_rx_on( unsigned char );
 
 // Turns off the receive function.
-void softuart_turn_rx_off( void );
+void softuart_turn_rx_off( unsigned char );
 
 // Write a NULL-terminated string from RAM to the serial port
-void softuart_puts( const char *s );
+void softuart_puts( unsigned char, const char *s );
 
 // Write a NULL-terminated string from program-space (flash) 
 // to the serial port. example: softuart_puts_p(PSTR("test"))
-void softuart_puts_p( const char *prg_s );
+void softuart_puts_p( unsigned char, const char *prg_s );
 
 // Helper-Macro - "automatically" inserts PSTR
 // when used: include avr/pgmspace.h before this include-file
