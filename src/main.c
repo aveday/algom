@@ -3,11 +3,6 @@
 #include <util/delay.h>
 #include "softuart.h"
 
-#ifdef __AVR_ATmega328P__
-#endif
-#ifdef __AVR_ATtiny85__
-#endif
-
 #define PING 'N'
 #define PONG 'F'
 #define LED_ON() ( PORTB |= _BV(PB4) )
@@ -18,16 +13,10 @@ int main ()
 {
 
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
-  softuart_create_channel(
-      &PIND, &DDRD, PD0,
-      &PORTD,&DDRD, PD1);
-  softuart_create_channel(
-      &PIND, &DDRD, PD2,
-      &PORTD,&DDRD, PD3);
+  softuart_create_channel( RX(D,0), TX(D,1) );
+  softuart_create_channel( RX(D,2), TX(D,3) );
 #elif defined(__AVR_ATtiny85__)
-  softuart_create_channel(
-      &PINB, &DDRB, PB0,
-      &PORTB,&DDRB, PB1);
+  softuart_create_channel( RX(B,0), TX(B,1) );
 #endif
 
   softuart_init();

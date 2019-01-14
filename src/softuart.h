@@ -7,7 +7,7 @@
 
 #if defined (__AVR_ATtiny25__) || defined (__AVR_ATtiny45__) || defined (__AVR_ATtiny85__)
 
-    #define SOFTUART_MAX_CHANNELS 1
+    #define SOFTUART_LIMIT 1
 
     #define SOFTUART_T_COMP_LABEL      TIM0_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR0A
@@ -40,7 +40,7 @@
    || defined (__AVR_ATmega328P__) || defined (__AVR_ATmega328PA__) \
    || defined (__AVR_ATmega164P__) || defined (__AVR_ATmega164A__)
 
-    #define SOFTUART_MAX_CHANNELS 2
+    #define SOFTUART_LIMIT 2
 
     #define SOFTUART_T_COMP_LABEL      TIMER0_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR0A
@@ -68,7 +68,7 @@
     #endif
 #elif defined (__AVR_ATmega8__)
 
-    #define SOFTUART_MAX_CHANNELS 2
+    #define SOFTUART_LIMIT 2
 
     #define SOFTUART_T_COMP_LABEL      TIMER1_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR1A
@@ -106,13 +106,8 @@
 
 #define SOFTUART_IN_BUF_SIZE     32
 
-volatile uint8_t *SOFTUART_RXPIN[SOFTUART_MAX_CHANNELS];
-volatile uint8_t *SOFTUART_RXDDR[SOFTUART_MAX_CHANNELS];
-uint8_t SOFTUART_RXBIT[SOFTUART_MAX_CHANNELS];
-
-volatile uint8_t *SOFTUART_TXPORT[SOFTUART_MAX_CHANNELS];
-volatile uint8_t *SOFTUART_TXDDR[SOFTUART_MAX_CHANNELS];
-uint8_t SOFTUART_TXBIT[SOFTUART_MAX_CHANNELS];
+#define RX(PORTx, BITn) &PIN  ## PORTx, &DDR ## PORTx, P ## PORTx ## BITn
+#define TX(PORTx, BITn) &PORT ## PORTx, &DDR ## PORTx, P ## PORTx ## BITn
 
 // Create the serial channels
 uint8_t softuart_create_channel(
