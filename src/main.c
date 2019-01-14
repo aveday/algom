@@ -16,14 +16,26 @@
 
 int main ()
 {
-  softuart_init(0);
+
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
-  softuart_init(1);
+  softuart_create_channel(
+      &PIND, &DDRD, PD0,
+      &PORTD,&DDRD, PD1);
+  softuart_create_channel(
+      &PIND, &DDRD, PD2,
+      &PORTD,&DDRD, PD3);
+#elif defined(__AVR_ATtiny85__)
+  softuart_create_channel(
+      &PINB, &DDRB, PB0,
+      &PORTB,&DDRB, PB1);
 #endif
+
+  softuart_init();
+
   DDRB |= _BV(PB4); // LED pin
   sei();
 
-  _delay_ms(1000);
+  _delay_ms(500);
   softuart_putchar(0, PING);
 
 	while(1) {

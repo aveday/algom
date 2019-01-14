@@ -163,27 +163,18 @@ static volatile unsigned char  flag_tx_busy[2];
 static volatile unsigned char  timer_tx_ctr[2];
 static volatile unsigned char  bits_left_in_tx[2];
 static volatile unsigned short internal_tx_buffer[2]; /* ! mt: was type uchar - this was wrong */
+static uint8_t softuart_channels = 0;
 
 void set_tx_pin_high(unsigned char i) {
-  switch(i) {
-    case 0: SOFTUART_TX0PORT |=  ( 1 << SOFTUART_TX0BIT ); break;
-    case 1: SOFTUART_TX1PORT |=  ( 1 << SOFTUART_TX1BIT ); break;
-  }
+  *SOFTUART_TXPORT[i] |=  ( 1 << SOFTUART_TXBIT[i] );
 }
 
 void set_tx_pin_low(unsigned char i) {
-  switch(i) {
-    case 0: SOFTUART_TX0PORT &=  ~( 1 << SOFTUART_TX0BIT ); break;
-    case 1: SOFTUART_TX1PORT &=  ~( 1 << SOFTUART_TX1BIT ); break;
-  }
+  *SOFTUART_TXPORT[i] &=  ~( 1 << SOFTUART_TXBIT[i] );
 }
 
 unsigned char get_rx_pin_status(unsigned char i) {
-  switch(i) {
-    case 0: return SOFTUART_RX0PIN & ( 1 << SOFTUART_RX0BIT );
-    case 1: return SOFTUART_RX1PIN & ( 1 << SOFTUART_RX1BIT );
-  }
-  return 0;
+  return *SOFTUART_RXPIN[i] & ( 1 << SOFTUART_RXBIT[i] );
 }
 
 ISR(SOFTUART_T_COMP_LABEL)
@@ -199,7 +190,7 @@ ISR(SOFTUART_T_COMP_LABEL)
 	unsigned char tmp[2];
 	
 	// Transmitter Section
-  for (unsigned char i = 0; i < SOFTUART_N; ++i) {
+  for (unsigned char i = 0; i < softuart_channels; ++i) {
     if ( flag_tx_busy[i] == SU_TRUE ) {
       tmp[i] = timer_tx_ctr[i];
       if ( --(tmp[i]) == 0 ) { // if ( --timer_tx_ctr <= 0 )
@@ -264,14 +255,12 @@ ISR(SOFTUART_T_COMP_LABEL)
   }
 }
 
-static void io_init(void)
+static void io_init(unsigned char i)
 {
   // TX-Pin as output
-  SOFTUART_TX0DDR |=  ( 1 << SOFTUART_TX0BIT );
-  SOFTUART_TX1DDR |=  ( 1 << SOFTUART_TX1BIT );
+  *SOFTUART_TXDDR[i] |=  ( 1 << SOFTUART_TXBIT[i] );
   // RX-Pin as input
-  SOFTUART_RX0DDR &= ~( 1 << SOFTUART_RX0BIT );
-  SOFTUART_RX1DDR &= ~( 1 << SOFTUART_RX1BIT );
+  *SOFTUART_RXDDR[i] &= ~( 1 << SOFTUART_RXBIT[i] );
 }
 
 static void timer_init(void)
@@ -293,15 +282,31 @@ static void timer_init(void)
 	SREG = sreg_tmp;
 }
 
-void softuart_init( unsigned char i )
-{
-	flag_tx_busy[i]  = SU_FALSE;
-	flag_rx_ready[i] = SU_FALSE;
-	flag_rx_off[i]   = SU_FALSE;
-	
-  set_tx_pin_high(i); /* mt: set to high to avoid garbage on init */
+uint8_t softuart_create_channel(
+    volatile uint8_t *rxpin, volatile uint8_t *rxddr, uint8_t rxbit,
+    volatile uint8_t *txport,volatile uint8_t *txddr, uint8_t txbit) {
 
-	io_init();
+  SOFTUART_RXPIN[softuart_channels] = rxpin;
+  SOFTUART_RXDDR[softuart_channels] = rxddr;
+  SOFTUART_RXBIT[softuart_channels] = rxbit;
+
+  SOFTUART_TXPORT[softuart_channels] = txport;
+  SOFTUART_TXDDR[softuart_channels] = txddr;
+  SOFTUART_TXBIT[softuart_channels] = txbit;
+  return ++softuart_channels;
+}
+
+void softuart_init( void )
+{
+  for (unsigned char i = 0; i < softuart_channels; ++i) {
+    flag_tx_busy[i]  = SU_FALSE;
+    flag_rx_ready[i] = SU_FALSE;
+    flag_rx_off[i]   = SU_FALSE;
+    
+    set_tx_pin_high(i); /* mt: set to high to avoid garbage on init */
+
+    io_init(i);
+  }
 	timer_init();
 }
 
