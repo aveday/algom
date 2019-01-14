@@ -21,7 +21,7 @@ int main ()
   sei();
 
 	while(1) {
-#ifdef __AVR_ATmega328P__
+#if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
     while (softuart_transmit_busy());
     softuart_putchar(SIG0);
     LED_ON();
@@ -33,8 +33,7 @@ int main ()
     softuart_putchar(SIG1);
 
     _delay_ms(1000);
-#endif
-#ifdef __AVR_ATtiny85__
+#elif defined (__AVR_ATtiny85__)
     char b = softuart_getchar();
     if (b == SIG0) LED_ON();
     if (b == SIG1) LED_OFF();

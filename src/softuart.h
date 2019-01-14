@@ -77,6 +77,40 @@
     #else 
         #error "prescale unsupported"
     #endif
+#elif defined (__AVR_ATmega8__)
+
+    #define SOFTUART_RXPIN   PIND
+    #define SOFTUART_RXDDR   DDRD
+    #define SOFTUART_RXBIT   PD0
+
+    #define SOFTUART_TXPORT  PORTD
+    #define SOFTUART_TXDDR   DDRD
+    #define SOFTUART_TXBIT   PD1
+
+    #define SOFTUART_T_COMP_LABEL      TIMER1_COMPA_vect
+    #define SOFTUART_T_COMP_REG        OCR1A
+    #define SOFTUART_T_CONTR_REGA      TCCR1A
+    #define SOFTUART_T_CONTR_REGB      TCCR1B
+    #define SOFTUART_T_CNT_REG         TCNT1
+    #define SOFTUART_T_INTCTL_REG      TIMSK
+    #define SOFTUART_CMPINT_EN_MASK    (1 << OCIE1A)
+    #define SOFTUART_CTC_MASKA         (0)
+    #define SOFTUART_CTC_MASKB         (1 << WGM12)
+
+    /* "A timer interrupt must be set to interrupt at three times 
+       the required baud rate." */
+    #define SOFTUART_PRESCALE (8)
+    // #define SOFTUART_PRESCALE (1)
+
+    #if (SOFTUART_PRESCALE == 8)
+        #define SOFTUART_PRESC_MASKA         (0)
+        #define SOFTUART_PRESC_MASKB         (1 << CS11)
+    #elif (SOFTUART_PRESCALE==1)
+        #define SOFTUART_PRESC_MASKA         (0)
+        #define SOFTUART_PRESC_MASKB         (1 << CS10)
+    #else 
+        #error "prescale unsupported"
+    #endif
 #else
     #error "no defintions available for this AVR"
 #endif
