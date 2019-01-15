@@ -3,7 +3,7 @@
     #define F_CPU 3686400UL
 #endif
 
-#define SOFTUART_BAUD_RATE      2400
+#define SOFTUART_BAUD_RATE      600
 
 #if defined (__AVR_ATtiny25__) || defined (__AVR_ATtiny45__) || defined (__AVR_ATtiny85__)
 
@@ -23,10 +23,13 @@
 
     /* "A timer interrupt must be set to interrupt at three times 
        the required baud rate." */
-    #define SOFTUART_PRESCALE (8)
+    #define SOFTUART_PRESCALE (64)
     // #define SOFTUART_PRESCALE (1)
 
-    #if (SOFTUART_PRESCALE == 8)
+    #if (SOFTUART_PRESCALE == 64)
+        #define SOFTUART_PRESC_MASKA         (0)
+        #define SOFTUART_PRESC_MASKB         (1 << CS01) | (1 << CS00)
+    #elif (SOFTUART_PRESCALE == 8)
         #define SOFTUART_PRESC_MASKA         (0)
         #define SOFTUART_PRESC_MASKB         (1 << CS01)
     #elif (SOFTUART_PRESCALE==1)
@@ -82,10 +85,13 @@
 
     /* "A timer interrupt must be set to interrupt at three times 
        the required baud rate." */
-    #define SOFTUART_PRESCALE (8)
+    #define SOFTUART_PRESCALE (64)
     // #define SOFTUART_PRESCALE (1)
 
-    #if (SOFTUART_PRESCALE == 8)
+    #if (SOFTUART_PRESCALE == 64)
+        #define SOFTUART_PRESC_MASKA         (0)
+        #define SOFTUART_PRESC_MASKB         (1 << CS11) | (1 << CS10)
+    #elif (SOFTUART_PRESCALE == 8)
         #define SOFTUART_PRESC_MASKA         (0)
         #define SOFTUART_PRESC_MASKB         (1 << CS11)
     #elif (SOFTUART_PRESCALE==1)

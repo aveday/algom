@@ -14,7 +14,7 @@ int main ()
 
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
   softuart_create_channel( RX(D,0), TX(D,1) );
-  softuart_create_channel( RX(D,2), TX(D,3) );
+  softuart_create_channel( RX(D,6), TX(D,7) );
 #elif defined(__AVR_ATtiny85__)
   softuart_create_channel( RX(B,0), TX(B,1) );
 #endif
