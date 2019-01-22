@@ -112,13 +112,18 @@
 
 #define SOFTUART_IN_BUF_SIZE     32
 
-#define RX(PORTx, BITn) &PIN  ## PORTx, &DDR ## PORTx, P ## PORTx ## BITn
-#define TX(PORTx, BITn) &PORT ## PORTx, &DDR ## PORTx, P ## PORTx ## BITn
+#define CH(PORTx, BITrx, BITtx) \
+  &DDR  ## PORTx,\
+  &PIN  ## PORTx,\
+  &PORT ## PORTx, \
+  P ## PORTx ## BITrx, P ## PORTx ## BITtx
 
 // Create the serial channels
 uint8_t softuart_create_channel(
-    volatile uint8_t *rxpin, volatile uint8_t *rxddr, uint8_t rxbit,
-    volatile uint8_t *txport,volatile uint8_t *txddr, uint8_t txbit);
+    volatile uint8_t *ddr,
+    volatile uint8_t *pin,
+    volatile uint8_t *port,
+    uint8_t rxbit, uint8_t txbit);
 
 // Init the Software Uart
 void softuart_init();

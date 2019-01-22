@@ -165,24 +165,22 @@ static volatile unsigned char  bits_left_in_tx[SOFTUART_LIMIT];
 static volatile unsigned short internal_tx_buffer[SOFTUART_LIMIT]; /* ! mt: was type uchar - this was wrong */
 static uint8_t softuart_channels = 0;
 
-volatile uint8_t *softuart_rxpin[SOFTUART_LIMIT];
-volatile uint8_t *softuart_rxddr[SOFTUART_LIMIT];
+volatile uint8_t *softuart_ddr[SOFTUART_LIMIT];
+volatile uint8_t *softuart_pin[SOFTUART_LIMIT];
+volatile uint8_t *softuart_port[SOFTUART_LIMIT];
 uint8_t softuart_rxbit[SOFTUART_LIMIT];
-
-volatile uint8_t *softuart_txport[SOFTUART_LIMIT];
-volatile uint8_t *softuart_txddr[SOFTUART_LIMIT];
 uint8_t softuart_txbit[SOFTUART_LIMIT];
 
 void set_tx_pin_high(unsigned char i) {
-  *softuart_txport[i] |=  ( 1 << softuart_txbit[i] );
+  *softuart_port[i] |=  ( 1 << softuart_txbit[i] );
 }
 
 void set_tx_pin_low(unsigned char i) {
-  *softuart_txport[i] &=  ~( 1 << softuart_txbit[i] );
+  *softuart_port[i] &=  ~( 1 << softuart_txbit[i] );
 }
 
 unsigned char get_rx_pin_status(unsigned char i) {
-  return *softuart_rxpin[i] & ( 1 << softuart_rxbit[i] );
+  return *softuart_pin[i] & ( 1 << softuart_rxbit[i] );
 }
 
 ISR(SOFTUART_T_COMP_LABEL)
@@ -266,9 +264,9 @@ ISR(SOFTUART_T_COMP_LABEL)
 static void io_init(unsigned char i)
 {
   // TX-Pin as output
-  *softuart_txddr[i] |=  ( 1 << softuart_txbit[i] );
+  *softuart_ddr[i] |=  ( 1 << softuart_txbit[i] );
   // RX-Pin as input
-  *softuart_rxddr[i] &= ~( 1 << softuart_rxbit[i] );
+  *softuart_ddr[i] &= ~( 1 << softuart_rxbit[i] );
 }
 
 static void timer_init(void)
@@ -291,15 +289,15 @@ static void timer_init(void)
 }
 
 uint8_t softuart_create_channel(
-    volatile uint8_t *rxpin, volatile uint8_t *rxddr, uint8_t rxbit,
-    volatile uint8_t *txport,volatile uint8_t *txddr, uint8_t txbit) {
+    volatile uint8_t *ddr,
+    volatile uint8_t *pin,
+    volatile uint8_t *port,
+    uint8_t rxbit, uint8_t txbit) {
 
-  softuart_rxpin[softuart_channels] = rxpin;
-  softuart_rxddr[softuart_channels] = rxddr;
+  softuart_ddr[softuart_channels] = ddr;
+  softuart_pin[softuart_channels] = pin;
+  softuart_port[softuart_channels] = port;
   softuart_rxbit[softuart_channels] = rxbit;
-
-  softuart_txport[softuart_channels] = txport;
-  softuart_txddr[softuart_channels] = txddr;
   softuart_txbit[softuart_channels] = txbit;
   return ++softuart_channels;
 }

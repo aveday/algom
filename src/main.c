@@ -46,8 +46,11 @@ int main ()
   START_PORT |= _BV(START_BIT);
   BOUNCE_PORT |= _BV(BOUNCE_BIT);
 
-  softuart_create_channel( RX(D,0), TX(D,1) );
-  softuart_create_channel( RX(D,6), TX(D,7) );
+  softuart_create_channel( CH(D, 0, 1) );
+  softuart_create_channel( CH(D, 6, 7) );
+  softuart_create_channel( CH(C, 4, 5) );
+  softuart_create_channel( CH(B, 1, 2) );
+
 #elif defined(__AVR_ATtiny85__)
   softuart_create_channel( RX(B,0), TX(B,1) );
 #endif
