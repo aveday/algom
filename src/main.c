@@ -5,9 +5,10 @@
 #include "light_ws2812.h"
 
 #define PING 'N'
-#define PONG 'F'
 #define SIG 'S'
 #define ACK 'A'
+#define FLOOD 'F'
+#define EMPTY 'E'
 
 #if defined(__AVR_ATmega8__)
   #define WS_PORT PORTC
@@ -28,8 +29,10 @@
 #define BOUNCE_BIT PB7
 
 
+uint8_t flood_mask = 0;
+
+struct cRGB light = {0, 0, 0};
 void flash(uint8_t c) {
-  struct cRGB light = {0, 0, 0};
   switch(c) {
     case 0: light.r = 255; break;
     case 1: light.g = 255; break;
@@ -41,6 +44,35 @@ void flash(uint8_t c) {
   light.g = 0;
   light.b = 0;
   ws2812_setleds(&light, 1);
+}
+
+void set_light(uint8_t c) {
+  light.r = c;
+  ws2812_setleds(&light, 1);
+}
+
+void empty (uint8_t n)
+{
+  if (!(flood_mask & _BV(n)))
+    return;
+  set_light(0);
+  flood_mask &= ~(_BV(n));
+  for (uint8_t i = 0; i < 4; ++i) {
+    softuart_putchar(i, EMPTY);
+    softuart_putchar(i, n);
+  }
+}
+
+void flood (uint8_t n)
+{
+  if (flood_mask & _BV(n))
+    return;
+  set_light(255);
+  flood_mask |= _BV(n);
+  for (uint8_t i = 0; i < 4; ++i) {
+    softuart_putchar(i, FLOOD);
+    softuart_putchar(i, n);
+  }
 }
 
 int main ()
@@ -75,10 +107,12 @@ int main ()
   flash(2);
   _delay_ms(200);
 
+  /*
   if (!(START_PIN & _BV(START_BIT))) {
     flash(1);
     softuart_putchar(3, PING);
   }
+  */
 
   uint8_t neighbour_mask = 0b0000;
 	while(1) {
@@ -91,6 +125,12 @@ int main ()
       if (!softuart_kbhit(i))
         continue;
       switch(softuart_getchar(i)) {
+        case FLOOD:
+          flood(softuart_getchar(i) % 8);
+          break;
+        case EMPTY:
+          empty(softuart_getchar(i) % 8);
+          break;
         case SIG:
           softuart_putchar(i, ACK);
           __attribute__ ((fallthrough));
