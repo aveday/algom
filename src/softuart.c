@@ -265,8 +265,9 @@ static void io_init(unsigned char i)
 {
   // TX-Pin as output
   *softuart_ddr[i] |=  ( 1 << softuart_txbit[i] );
-  // RX-Pin as input
+  // RX-Pin as input (pulled up)
   *softuart_ddr[i] &= ~( 1 << softuart_rxbit[i] );
+  *softuart_port[i] |= 1 << softuart_rxbit[i];
 }
 
 static void timer_init(void)
