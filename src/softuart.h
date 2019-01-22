@@ -71,7 +71,7 @@
     #endif
 #elif defined (__AVR_ATmega8__)
 
-    #define SOFTUART_LIMIT 2
+    #define SOFTUART_LIMIT 4
 
     #define SOFTUART_T_COMP_LABEL      TIMER1_COMPA_vect
     #define SOFTUART_T_COMP_REG        OCR1A
