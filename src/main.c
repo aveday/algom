@@ -66,13 +66,13 @@ int main ()
   softuart_init();
   sei();
 
-  flash(2);
-  _delay_ms(500);
+  _delay_ms(200);
 
   // send init signals to neighbours
   for (uint8_t i = 0; i < 4; ++i) {
     softuart_putchar(i, SIG);
   }
+  flash(2);
   _delay_ms(200);
 
   if (!(START_PIN & _BV(START_BIT))) {
