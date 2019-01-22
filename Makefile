@@ -1,10 +1,10 @@
 BAUD=19200
-# MCU=attiny85
-FREQ=8000000 # 16 Mhz
+SOFTBAUD=2400
+FREQ=8000000 # 8 Mhz
 PROGRAMMER=usbasp
 
 CC=avr-gcc
-CFLAGS=-DF_CPU=${FREQ} -mmcu=${MCU} -Wall -Werror -Wfatal-errors -Wextra -Os
+CFLAGS=-DF_CPU=${FREQ} -DSOFTUART_BAUD_RATE=${SOFTBAUD} -mmcu=${MCU} -Wall -Werror -Wfatal-errors -Wextra -Os
 
 SRC=${wildcard src/*.c}
 OBJ=${SRC:src/%.c=obj/%.o}
