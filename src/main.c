@@ -107,9 +107,6 @@ int main ()
   softuart_create_channel( CH(D, 6, 7) );
   softuart_create_channel( CH(C, 4, 5) );
   softuart_create_channel( CH(B, 1, 2) );
-
-#elif defined(__AVR_ATtiny85__)
-  softuart_create_channel( RX(B,0), TX(B,1) );
 #endif
 
   softuart_init();
