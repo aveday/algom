@@ -84,9 +84,12 @@ void move(uint8_t dir)
     // prevent falling off edge of world
     if (!(neighbour_mask & _BV(dir)))
       return;
+
     status &= ~(_BV(SELECTED));
     light.g = 0;
     ws2812_setleds(&light, 1);
+
+    next = dir;
     softuart_putchar(dir, SEL);
 
   // move along path
