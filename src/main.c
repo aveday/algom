@@ -4,14 +4,11 @@
 #include "softuart.h"
 #include "light_ws2812.h"
 
-#if defined(__AVR_ATmega8__)
-  #define WS_PORT PORTC
-  #define WS_DDR DDRC
-  #define WS_POWER PC0
-  #define WS_GROUND PC2
-  #define WS_DATA PC1
-#elif defined(__AVR_ATtiny85__)
-#endif
+#define WS_PORT PORTC
+#define WS_DDR DDRC
+#define WS_POWER PC0
+#define WS_GROUND PC2
+#define WS_DATA PC1
 
 #define START_PORT PORTB
 #define START_PIN PINB
@@ -118,7 +115,6 @@ ISR(TIMER0_OVF_vect)
 
 int main ()
 {
-#if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
   WS_DDR |= _BV(WS_POWER) | _BV(WS_GROUND) | _BV(WS_DATA);
   WS_PORT |= _BV(WS_POWER); // ws2812 power set high
 
@@ -130,7 +126,6 @@ int main ()
   softuart_create_channel( CH(D, 6, 7) );
   softuart_create_channel( CH(C, 4, 5) );
   softuart_create_channel( CH(B, 1, 2) );
-#endif
 
   softuart_init();
   sei();
@@ -159,11 +154,7 @@ int main ()
   TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
   //set_flash(225);
 
-
-
 	while(1) {
-#if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
-
     uint8_t bounce = !(BOUNCE_PIN & _BV(BOUNCE_BIT));
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -216,5 +207,4 @@ int main ()
     }
   }
 }
-#endif
 
