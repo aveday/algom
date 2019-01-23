@@ -21,69 +21,76 @@
 #define BOUNCE_PIN PINB
 #define BOUNCE_BIT PB7
 
+// message macros
 #define PING 'N'
 #define SIG 'S'
 #define ACK 'A'
 #define SEL 'L'
 #define MOVE 'M'
+#define BACK 'B'
 #define FLOOD 'F'
 #define EMPTY 'E'
 
-#define SELECTED 1
-
-int8_t next = -1;
+// status macros
+#define SELECTED 0
+#define PREVSET  1
 uint8_t status = 0;
-uint8_t flood_mask = 0;
+
+// neighbours
+uint8_t next, prev;
 uint8_t neighbour_mask = 0b0000;
 
 struct cRGB light = {0, 0, 0};
 
 void empty (uint8_t n)
 {
-  if (!(flood_mask & _BV(n)))
+  if (!(status & _BV(n)))
     return;
-  light.g = 0;
-  ws2812_setleds(&light, 1);
-  flood_mask &= ~(_BV(n));
+  status &= ~(_BV(n));
   for (uint8_t i = 0; i < 4; ++i) {
     softuart_putchar(i, EMPTY);
     softuart_putchar(i, n);
   }
 }
 
-void flood (uint8_t n)
+void flood (int8_t src, uint8_t n)
 {
-  if (flood_mask & _BV(n))
+  if (status & _BV(n))
     return;
 
-  light.g = 100;
-  ws2812_setleds(&light, 1);
-  flood_mask |= _BV(n);
+  prev = src;
+  status |= _BV(n);
   for (uint8_t i = 0; i < 4; ++i) {
     softuart_putchar(i, FLOOD);
     softuart_putchar(i, n);
   }
 }
 
-void select() {
-  status = SELECTED;
+void select()
+{
+  status |= _BV(SELECTED);
   light.g = 100;
   ws2812_setleds(&light, 1);
-  next = -1;
+  softuart_putchar(prev, BACK);
+}
+
+void backtrack(uint8_t src)
+{
+  next = src;
+  softuart_putchar(prev, BACK);
 }
 
 void move(uint8_t dir)
 {
   // select adjacent node
-  if (next == -1) {
+  if (status & _BV(SELECTED)) {
+    // prevent falling off edge of world
     if (!(neighbour_mask & _BV(dir)))
       return;
-    status = 0;
+    status &= ~(_BV(SELECTED));
     light.g = 0;
     ws2812_setleds(&light, 1);
-
     softuart_putchar(dir, SEL);
-    next = dir;
 
   // move along path
   } else {
@@ -111,7 +118,6 @@ ISR(TIMER0_OVF_vect)
 
 int main ()
 {
-
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
   WS_DDR |= _BV(WS_POWER) | _BV(WS_GROUND) | _BV(WS_DATA);
   WS_PORT |= _BV(WS_POWER); // ws2812 power set high
@@ -144,14 +150,16 @@ int main ()
   ws2812_setleds(&light, 1);
 
   if (!(START_PIN & _BV(START_BIT))) {
-    status = SELECTED;
-    light.g = 100;
-    ws2812_setleds(&light, 1);
+    // floodfill cells to set backtracking direction
+    flood(0, PREVSET);
+    select();
   }
 
   // init flash timer
   TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
-  set_flash(225);
+  //set_flash(225);
+
+
 
 	while(1) {
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
@@ -178,12 +186,17 @@ int main ()
           select();
           break;
 
+        case BACK:
+          backtrack(i);
+          break;
+
         case FLOOD:
-          flood(softuart_getchar(i) % 8);
+          flood(i, softuart_getchar(i) % 8);
           break;
         case EMPTY:
           empty(softuart_getchar(i) % 8);
           break;
+
         case SIG:
           softuart_putchar(i, ACK);
           __attribute__ ((fallthrough));
