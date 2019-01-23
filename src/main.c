@@ -92,6 +92,23 @@ void move(uint8_t dir)
   }
 }
 
+static uint8_t flash_speed = 250;
+
+void set_flash (uint8_t speed) 
+{
+  TCCR0 = speed ? _BV(CS02) | _BV(CS00) : 0;
+  flash_speed = speed;
+}
+
+ISR(TIMER0_OVF_vect)
+{
+  static uint8_t  c = 0;
+  if (c--) return;
+  c = ~flash_speed;
+  light.b = ~light.b;
+  ws2812_setleds(&light, 1);
+}
+
 int main ()
 {
 
@@ -131,6 +148,10 @@ int main ()
     light.g = 100;
     ws2812_setleds(&light, 1);
   }
+
+  // init flash timer
+  TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
+  set_flash(225);
 
 	while(1) {
 #if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega8__)
