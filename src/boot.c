@@ -62,19 +62,18 @@ int main() {
   softuart_create_channel( CH(B, 1, 2) );
   softuart_init();
   sei();
+  _delay_ms(10);
 
   DDRB |= _BV(PB0);
 
   // send out boot signal
   for (int i = 0; i < 4; ++i)
     softuart_putchar(i, BOOT);
-  _delay_ms(100);
+  _delay_ms(10);
 
   // check for available program
   int8_t sender = NONE;
   for (uint8_t i= 0; i< 4; i++) {
-    softuart_putchar(1, i + ASCII_NUM_START);
-    _delay_ms(100);
     if (softuart_kbhit(i) && softuart_getchar(i) == PROGRAM_AVAILABLE) {
       sender = i;
       break;
@@ -90,17 +89,21 @@ int main() {
 
     uint32_t page = FLASH_APP_START_ADDR;
 
-    // for each PAGE_SEND signal from sender
     while (1) {
-      softuart_putchar(1, 'a');
 
+      // ask for a program page from the sender
       softuart_putchar(sender, PAGE_GET);
       uint8_t response = softuart_getchar(sender);
-      softuart_putchar(1, 'b');
 
-      if (response == PAGE_SEND) {
-        softuart_putchar(1, 'c');
+      if (response == PROGRAM_END) {
+        break;
 
+      } else if (response == PAGE_EMPTY) {
+        cli();
+        boot_page_erase_safe (page);
+        sei();
+
+      } else if (response == PAGE_SEND) {
         // read program bytes into page buffer
         for (uint16_t i = 0; i < SPM_PAGESIZE; ++i)
           page_buffer[i] = softuart_getchar(sender);
@@ -108,12 +111,7 @@ int main() {
         // then program page
         boot_program_page(page, page_buffer);
         page += SPM_PAGESIZE;
-
-      } else if (response == PROGRAM_END) {
-        softuart_putchar(1, 'x');
-        break;
       }
-
     }
     PORTB &= ~(_BV(PB0));
   }

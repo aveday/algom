@@ -108,6 +108,30 @@ ISR(TIMER0_OVF_vect)
   ws2812_setleds(&light, 1);
 }
 
+void send_page(uint8_t dir, uint16_t page) {
+  // check for program end
+  if (page >= BOOTSTART) {
+    softuart_putchar(dir, PROGRAM_END);
+    return;
+  }
+
+  // check for page contents
+  uint8_t page_empty = 1;
+  uint16_t addr = page;
+  for (uint16_t i = 0; i < SPM_PAGESIZE; ++i)
+    if (pgm_read_byte(addr++) != 0xFF)
+      page_empty = 0;
+  if (page_empty) {
+    softuart_putchar(dir, PAGE_EMPTY);
+    return;
+  }
+
+  addr = page;
+  softuart_putchar(dir, PAGE_SEND);
+  for (uint16_t i = 0; i < SPM_PAGESIZE; ++i)
+    softuart_putchar(dir, pgm_read_byte(addr++));
+}
+
 int main ()
 {
   WS_DDR |= _BV(WS_POWER) | _BV(WS_GROUND) | _BV(WS_DATA);
@@ -149,80 +173,71 @@ int main ()
   TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
   //set_flash(225);
 
+  uint16_t addr[4];
 
-	while(1) {
+  // loop forever over uart channels
+  for (uint8_t i = 0;; i = (i + 1) % 4) {
     uint8_t bounce = !(BOUNCE_PIN & _BV(BOUNCE_BIT));
-    uint16_t addr[4];
 
-    for (uint8_t i = 0; i < 4; ++i) {
+    if (!softuart_kbhit(i))
+      continue;
+    char c = softuart_getchar(i);
+    switch(c) {
 
-      if (!softuart_kbhit(i))
-        continue;
-      char c = softuart_getchar(i);
-      switch(c) {
+      case 'h': move(2); break;
+      case 'j': move(0); break;
+      case 'k': move(3); break;
+      case 'l': move(1); break;
 
-        case 'h': move(2); break;
-        case 'j': move(0); break;
-        case 'k': move(3); break;
-        case 'l': move(1); break;
+      case BOOT:
+        // XXX only offer program south
+        if (i == 0)
+          softuart_putchar(i, PROGRAM_AVAILABLE);
+        break;
 
-        case BOOT:
-          // XXX only offer program south
-          if (i == 0)
-            softuart_putchar(i, PROGRAM_AVAILABLE);
-          break;
+      case PROGRAM_GET:
+        addr[i] = 0x00;
+        break;
 
-        case PROGRAM_GET:
-          addr[i] = 0x00;
-          break;
+      case PAGE_GET:
+        send_page(i, addr[i]);
+        addr[i] += SPM_PAGESIZE;
+        break;
 
-        case PAGE_GET:
-          if (addr[i] < BOOTSTART) {
-            softuart_putchar(i, PAGE_SEND);
-            for (uint16_t j = 0; j < SPM_PAGESIZE; ++j) {
-              softuart_putchar(i, pgm_read_byte(addr[i]));
-              ++addr[i];
-            }
-          } else {
-            softuart_putchar(i, PROGRAM_END);
-          }
-          break;
+      case MOVE:
+        move(softuart_getchar(i));
+        break;
 
-        case MOVE:
-          move(softuart_getchar(i));
-          break;
+      case SEL:
+        select();
+        break;
 
-        case SEL:
-          select();
-          break;
+      case BACK:
+        backtrack(i);
+        break;
 
-        case BACK:
-          backtrack(i);
-          break;
+      case FLOOD:
+        flood(i, softuart_getchar(i) % 8);
+        break;
+      case EMPTY:
+        empty(softuart_getchar(i) % 8);
+        break;
 
-        case FLOOD:
-          flood(i, softuart_getchar(i) % 8);
-          break;
-        case EMPTY:
-          empty(softuart_getchar(i) % 8);
-          break;
-
-        case SIG:
-          softuart_putchar(i, ACK);
-          __attribute__ ((fallthrough));
-        case ACK:
-          neighbour_mask |= _BV(i);
-          break;
-        case PING:
-          light.r =  ~light.r;
-          ws2812_setleds(&light, 1);
-          uint8_t n = 1;
-          for (; n < 4; ++n)
-            if ( _BV((i+n) % 4) & neighbour_mask )
-              break;
-          softuart_putchar(bounce ? i : (i + n) % 4, PING);
-          break;
-      }
+      case SIG:
+        softuart_putchar(i, ACK);
+        __attribute__ ((fallthrough));
+      case ACK:
+        neighbour_mask |= _BV(i);
+        break;
+      case PING:
+        light.r =  ~light.r;
+        ws2812_setleds(&light, 1);
+        uint8_t n = 1;
+        for (; n < 4; ++n)
+          if ( _BV((i+n) % 4) & neighbour_mask )
+            break;
+        softuart_putchar(bounce ? i : (i + n) % 4, PING);
+        break;
     }
   }
 }

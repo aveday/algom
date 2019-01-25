@@ -13,4 +13,5 @@
 #define PROGRAM_END 'X'
 #define PAGE_SEND 'G'
 #define PAGE_GET 'g'
+#define PAGE_EMPTY 'x'
 
