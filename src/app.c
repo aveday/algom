@@ -1,8 +1,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/pgmspace.h>
 #include <util/delay.h>
 #include "softuart.h"
 #include "light_ws2812.h"
+#include "signals.h"
 
 #define WS_PORT PORTC
 #define WS_DDR DDRC
@@ -17,16 +19,6 @@
 #define BOUNCE_PORT PORTB
 #define BOUNCE_PIN PINB
 #define BOUNCE_BIT PB7
-
-// message macros
-#define PING 'N'
-#define SIG 'S'
-#define ACK 'A'
-#define SEL 'L'
-#define MOVE 'M'
-#define BACK 'B'
-#define FLOOD 'F'
-#define EMPTY 'E'
 
 // status macros
 #define SELECTED 0
@@ -66,7 +58,7 @@ void flood (int8_t src, uint8_t n)
 void select()
 {
   status |= _BV(SELECTED);
-  light.g = 100;
+  light.g = 30;
   ws2812_setleds(&light, 1);
   softuart_putchar(prev, BACK);
 }
@@ -157,8 +149,10 @@ int main ()
   TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
   //set_flash(225);
 
+
 	while(1) {
     uint8_t bounce = !(BOUNCE_PIN & _BV(BOUNCE_BIT));
+    uint16_t addr[4];
 
     for (uint8_t i = 0; i < 4; ++i) {
 
@@ -171,6 +165,28 @@ int main ()
         case 'j': move(0); break;
         case 'k': move(3); break;
         case 'l': move(1); break;
+
+        case BOOT:
+          // XXX only offer program south
+          if (i == 0)
+            softuart_putchar(i, PROGRAM_AVAILABLE);
+          break;
+
+        case PROGRAM_GET:
+          addr[i] = 0x00;
+          break;
+
+        case PAGE_GET:
+          if (addr[i] < BOOTSTART) {
+            softuart_putchar(i, PAGE_SEND);
+            for (uint16_t j = 0; j < SPM_PAGESIZE; ++j) {
+              softuart_putchar(i, pgm_read_byte(addr[i]));
+              ++addr[i];
+            }
+          } else {
+            softuart_putchar(i, PROGRAM_END);
+          }
+          break;
 
         case MOVE:
           move(softuart_getchar(i));

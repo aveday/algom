@@ -2,78 +2,127 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/boot.h>
-#include <util/delay.h>
 #include <inttypes.h>
-
-// boot size is 1024 words
-#define _B1024
-#include "chipdef.h"
+#include <util/delay.h>
+#include "softuart.h"
+#include "signals.h"
 
 #define FLASH_APP_START_ADDR 0x0000
-
-// prog is 128 bytes / 64 words / 2 pages
-uint8_t prog[] = {
-  0x12,0xC0,0x19,0xC0,0x18,0xC0,0x17,0xC0,0x16,0xC0,0x15,0xC0,0x14,0xC0,0x13,0xC0,
-  0x12,0xC0,0x11,0xC0,0x10,0xC0,0x0F,0xC0,0x0E,0xC0,0x0D,0xC0,0x0C,0xC0,0x0B,0xC0,
-  0x0A,0xC0,0x09,0xC0,0x08,0xC0,0x11,0x24,0x1F,0xBE,0xCF,0xE5,0xD4,0xE0,0xDE,0xBF,
-  0xCD,0xBF,0x02,0xD0,0x10,0xC0,0xE4,0xCF,0xB8,0x9A,0x91,0xE0,0x2F,0xEF,0x39,0xE6,
-
-  0x88,0xE1,0x21,0x50,0x30,0x40,0x80,0x40,0xE1,0xF7,0x00,0xC0,0x00,0x00,0x88,0xB3,
-  0x89,0x27,0x88,0xBB,0xF3,0xCF,0xF8,0x94,0xFF,0xCF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-};
-
- /*
- size addr type data                             checksum
-:10   0000 00   12C019C018C017C016C015C014C013C0 44
-:10   0010 00   12C011C010C00FC00EC00DC00CC00BC0 6C
-:10   0020 00   0AC009C008C011241FBECFE5D4E0DEBF 5E
-:10   0030 00   CDBF02D010C0E4CFB89A91E02FEF39E6 DF
-:10   0040 00   88E1215030408040E1F700C0000088B3 D3
-:0A   0050 00   892788BBF3CFF894FFCF             97
-:00   0000 01                                    FF
-*/
+#define NONE -1
 
 // jump to main application
 typedef void (*fptr_t)(void);
 fptr_t start_app = (fptr_t)0x0000;
 
+#define ASCII_NUM_START   0x30
+#define ASCII_ALPHA_START 0x41
+
+#define CHAR_TO_NYBBLE(ch) ( \
+  (ch) < ASCII_ALPHA_START \
+    ? (ch) - ASCII_NUM_START \
+    : (ch) - ASCII_ALPHA_START + 0xA \
+)
+
+#define NYBBLE_TO_CHAR(nybble) ( \
+  (nybble) < 0xA \
+    ? (nybble) + ASCII_NUM_START \
+    : (nybble) + ASCII_ALPHA_START - 0xA \
+)
+
+void byte_to_string(char* str, uint8_t byte) {
+  str[0] = NYBBLE_TO_CHAR(byte >> 0x4);
+  str[1] = NYBBLE_TO_CHAR(byte & 0xF);
+}
+
+uint8_t page_buffer[SPM_PAGESIZE];
 void boot_program_page (uint32_t page, uint8_t *buf)
 {
-    cli();
 
-    boot_page_erase_safe (page);
-
-    for (uint16_t i=0; i<SPM_PAGESIZE; i+=2) {
-        // Set up little-endian word.
-        uint16_t w = *buf++;
-        w += (*buf++) << 8;
-        boot_page_fill_safe (page + i, w);
-    }
-
-    boot_page_write_safe (page);
+  for (uint16_t i=0; i<SPM_PAGESIZE; i+=2) {
+    // Set up little-endian word.
+    uint16_t w = *buf++;
+    w += (*buf++) << 8;
+    boot_page_fill_safe (page + i, w);
+  }
+  cli();
+  boot_page_erase_safe (page);
+  boot_page_write_safe (page);
+  sei();
 }
 
 int main() {
-  cli();
+  // set interrupt vectors to bootloader
+  GICR = _BV(IVCE);
+  GICR = _BV(IVSEL);
+
+  // setup softuart
+  softuart_create_channel( CH(D, 0, 1) );
+  softuart_create_channel( CH(D, 6, 7) );
+  softuart_create_channel( CH(C, 4, 5) );
+  softuart_create_channel( CH(B, 1, 2) );
+  softuart_init();
+  sei();
 
   DDRB |= _BV(PB0);
-  uint8_t i = 10;
-  while (--i) {
-    _delay_ms(200);
-    PORTB ^= _BV(PB0);
+
+  // send out boot signal
+  for (int i = 0; i < 4; ++i)
+    softuart_putchar(i, BOOT);
+  _delay_ms(100);
+
+  // check for available program
+  int8_t sender = NONE;
+  for (uint8_t i= 0; i< 4; i++) {
+    softuart_putchar(1, i + ASCII_NUM_START);
+    _delay_ms(100);
+    if (softuart_kbhit(i) && softuart_getchar(i) == PROGRAM_AVAILABLE) {
+      sender = i;
+      break;
+    }
   }
 
-  // write prog
-  boot_program_page(FLASH_APP_START_ADDR, prog);
-  boot_program_page(FLASH_APP_START_ADDR + SPM_PAGESIZE, prog + SPM_PAGESIZE);
+  // receive program from sender
+  if (sender != NONE) {
+    PORTB |= _BV(PB0);
+
+    // ask for program
+    softuart_putchar(sender, PROGRAM_GET);
+
+    uint32_t page = FLASH_APP_START_ADDR;
+
+    // for each PAGE_SEND signal from sender
+    while (1) {
+      softuart_putchar(1, 'a');
+
+      softuart_putchar(sender, PAGE_GET);
+      uint8_t response = softuart_getchar(sender);
+      softuart_putchar(1, 'b');
+
+      if (response == PAGE_SEND) {
+        softuart_putchar(1, 'c');
+
+        // read program bytes into page buffer
+        for (uint16_t i = 0; i < SPM_PAGESIZE; ++i)
+          page_buffer[i] = softuart_getchar(sender);
+
+        // then program page
+        boot_program_page(page, page_buffer);
+        page += SPM_PAGESIZE;
+
+      } else if (response == PROGRAM_END) {
+        softuart_putchar(1, 'x');
+        break;
+      }
+
+    }
+    PORTB &= ~(_BV(PB0));
+  }
 
   // Reenable RWW-section again
   boot_rww_enable_safe ();
 
-  PORTB = 0;
-  DDRB = 0;
-
+  // return interrupt vectors to application
+  GICR = _BV(IVCE);
+  GICR = 0;
   start_app();
 }
