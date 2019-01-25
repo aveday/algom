@@ -2,7 +2,7 @@
 #define PING 'N'
 #define SIG 'S'
 #define ACK 'A'
-#define SEL 'L'
+#define SEL '@'
 #define MOVE 'M'
 #define BACK 'B'
 #define FLOOD 'F'
@@ -14,4 +14,6 @@
 #define PAGE_SEND 'G'
 #define PAGE_GET 'g'
 #define PAGE_EMPTY 'x'
+#define RESET 'R'
+#define CLONE 'C'
 

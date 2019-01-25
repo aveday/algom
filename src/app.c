@@ -1,6 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <avr/wdt.h>
 #include <util/delay.h>
 #include "softuart.h"
 #include "light_ws2812.h"
@@ -20,6 +21,8 @@
 #define BOUNCE_PIN PINB
 #define BOUNCE_BIT PB7
 
+#define ASCII_NUM_START   0x30
+
 // status macros
 #define SELECTED 0
 #define PREVSET  1
@@ -28,6 +31,7 @@ uint8_t status = 0;
 // neighbours
 uint8_t next, prev;
 uint8_t neighbour_mask = 0b0000;
+uint8_t clone_mask = 0b0000;
 
 struct cRGB light = {0, 0, 0};
 
@@ -104,7 +108,7 @@ ISR(TIMER0_OVF_vect)
   static uint8_t  c = 0;
   if (c--) return;
   c = ~flash_speed;
-  light.b = ~light.b;
+  light.r = ~light.r;
   ws2812_setleds(&light, 1);
 }
 
@@ -134,6 +138,8 @@ void send_page(uint8_t dir, uint16_t page) {
 
 int main ()
 {
+  wdt_reset();
+
   WS_DDR |= _BV(WS_POWER) | _BV(WS_GROUND) | _BV(WS_DATA);
   WS_PORT |= _BV(WS_POWER); // ws2812 power set high
 
@@ -175,8 +181,10 @@ int main ()
 
   uint16_t addr[4];
 
+  wdt_enable(WDTO_1S);
   // loop forever over uart channels
   for (uint8_t i = 0;; i = (i + 1) % 4) {
+    wdt_reset();
     uint8_t bounce = !(BOUNCE_PIN & _BV(BOUNCE_BIT));
 
     if (!softuart_kbhit(i))
@@ -189,10 +197,26 @@ int main ()
       case 'k': move(3); break;
       case 'l': move(1); break;
 
+      case RESET:
+        wdt_enable(WDTO_250MS);
+        set_flash(254);
+        for(;;) {}
+        break;
+
+      case 'e':
+        softuart_putchar(1, 'r');
+        break;
+
+      case 'r':
+        softuart_putchar(1, RESET);
+        clone_mask |= _BV(1);
+        break;
+
       case BOOT:
-        // XXX only offer program south
-        if (i == 0)
+        if (clone_mask & _BV(i)) {
           softuart_putchar(i, PROGRAM_AVAILABLE);
+          clone_mask &= ~(_BV(i));
+        }
         break;
 
       case PROGRAM_GET:

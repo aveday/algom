@@ -2,6 +2,7 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/boot.h>
+#include <avr/wdt.h>
 #include <inttypes.h>
 #include <util/delay.h>
 #include "softuart.h"
@@ -51,6 +52,8 @@ void boot_program_page (uint32_t page, uint8_t *buf)
 }
 
 int main() {
+  wdt_enable(WDTO_1S);
+
   // set interrupt vectors to bootloader
   GICR = _BV(IVCE);
   GICR = _BV(IVSEL);
@@ -71,6 +74,8 @@ int main() {
     softuart_putchar(i, BOOT);
   _delay_ms(10);
 
+  wdt_reset();
+
   // check for available program
   int8_t sender = NONE;
   for (uint8_t i= 0; i< 4; i++) {
@@ -79,6 +84,8 @@ int main() {
       break;
     }
   }
+
+  wdt_reset();
 
   // receive program from sender
   if (sender != NONE) {
@@ -90,6 +97,7 @@ int main() {
     uint32_t page = FLASH_APP_START_ADDR;
 
     while (1) {
+      wdt_reset();
 
       // ask for a program page from the sender
       softuart_putchar(sender, PAGE_GET);
@@ -118,6 +126,8 @@ int main() {
 
   // Reenable RWW-section again
   boot_rww_enable_safe ();
+
+  wdt_reset();
 
   // return interrupt vectors to application
   GICR = _BV(IVCE);
