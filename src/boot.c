@@ -91,9 +91,6 @@ int main() {
   if (sender != NONE) {
     PORTB |= _BV(PB0);
 
-    // ask for program
-    softuart_putchar(sender, PROGRAM_GET);
-
     uint32_t page = FLASH_APP_START_ADDR;
 
     while (1) {

@@ -40,57 +40,7 @@ uint8_t clone_mask = 0b0000;
 
 struct cRGB light = {0, 0, 0};
 
-/*
-void empty (uint8_t n)
-{
-  if (!(status & _BV(n)))
-    return;
-  status &= ~(_BV(n));
-  for (uint8_t i = 0; i < 4; ++i) {
-    softuart_putchar(i, EMPTY);
-    softuart_putchar(i, n);
-  }
-}
-*/
-
-void flood (int8_t src)
-{
-  if (status & _BV(PREVSET))
-    return;
-
-  prev = src;
-  status |= _BV(PREVSET);
-  for (uint8_t i = 0; i < 4; ++i) {
-    softuart_putchar(i, FLOOD);
-  }
-}
-
-void select(uint8_t src)
-{
-  status |= _BV(SELECTED);
-  light.g = 30;
-  ws2812_setleds(&light, 1);
-  softuart_putchar(prev, BACK);
-  softuart_putchar(src, DESEL);
-}
-
-void deselect()
-{
-  // deselect
-  status &= ~(_BV(SELECTED));
-  light.g = 0;
-  ws2812_setleds(&light, 1);
-}
-
-void backtrack(uint8_t src)
-{
-  // continue backtracking
-  next = src;
-  softuart_putchar(prev, BACK);
-}
-
 static uint8_t flash_speed = 250;
-
 void set_flash (uint8_t speed) 
 {
   TCCR0 = speed ? _BV(CS02) | _BV(CS00) : 0;
@@ -104,6 +54,63 @@ ISR(TIMER0_OVF_vect)
   c = ~flash_speed;
   light.r = ~light.r;
   ws2812_setleds(&light, 1);
+}
+
+void flood (int8_t src)
+{
+  if (status & _BV(PREVSET))
+    return;
+
+  prev = src;
+  status |= _BV(PREVSET);
+  for (uint8_t i = 0; i < 4; ++i) {
+    softuart_putchar(i, FLOOD);
+  }
+}
+
+void boot(uint8_t src)
+{
+  if (clone_mask & _BV(src)) {
+    softuart_putchar(src, PROGRAM_AVAILABLE);
+    clone_mask &= ~(_BV(src));
+  }
+}
+
+void reset()
+{
+  wdt_enable(WDTO_250MS);
+  set_flash(254);
+  for(;;) {}
+}
+
+void clone(uint8_t src)
+{
+  softuart_putchar(src, PROGRAM_GET);
+  reset();
+}
+
+void select(uint8_t src)
+{
+  status |= _BV(SELECTED);
+  light.r = 30;
+  light.b = 30;
+  ws2812_setleds(&light, 1);
+  softuart_putchar(prev, BACK);
+  softuart_putchar(src, DESEL);
+}
+
+void deselect()
+{
+  status &= ~(_BV(SELECTED));
+  light.r = 0;
+  light.b = 0;
+  ws2812_setleds(&light, 1);
+}
+
+void backtrack(uint8_t src)
+{
+  next = src;
+  softuart_putchar(prev, BACK);
 }
 
 void send_page(uint8_t dir, uint16_t page) {
@@ -171,7 +178,6 @@ int main ()
 
   // init flash timer
   TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
-  //set_flash(225);
 
   uint16_t addr[4];
   uint8_t dirmask[4] = {
@@ -189,7 +195,6 @@ int main ()
 
     if (!softuart_kbhit(i)) continue;
     uint8_t cmd = softuart_getchar(i);
-    softuart_putchar(0, i + ASCII_NUM_START);
 
     // check if dirmask
     if (cmd & DIRMASK) {
@@ -199,17 +204,20 @@ int main ()
 
     // generate appropriate dirmask from user commands
     switch (cmd) {
-      case 'h': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b0100; break;
-      case 'j': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b0001; break;
-      case 'k': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b1000; break;
-      case 'l': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b0010; break;
-      case 'r': cmd = RESET, dirmask[i] = DIRMASK | RELAY | 0b0010; break;
+      case 'h': cmd = SEL,   dirmask[i] = DIRMASK|RELAY|0b0100; break;
+      case 'j': cmd = SEL,   dirmask[i] = DIRMASK|RELAY|0b0001; break;
+      case 'k': cmd = SEL,   dirmask[i] = DIRMASK|RELAY|0b1000; break;
+      case 'l': cmd = SEL,   dirmask[i] = DIRMASK|RELAY|0b0010; break;
+
+      case 'H': cmd = CLONE, dirmask[i] = DIRMASK|RELAY|0b0100; break;
+      case 'J': cmd = CLONE, dirmask[i] = DIRMASK|RELAY|0b0001; break;
+      case 'K': cmd = CLONE, dirmask[i] = DIRMASK|RELAY|0b1000; break;
+      case 'L': cmd = CLONE, dirmask[i] = DIRMASK|RELAY|0b0010; break;
     }
 
     // --- Relaying ---
 
     if (dirmask[i] & RELAY) {
-      softuart_putchar(0, '>');
       if (status & _BV(SELECTED)) {
         // remove relay mask if node is selected
         dirmask[i] &= ~RELAY;
@@ -220,11 +228,6 @@ int main ()
         continue;
       }
     }
-
-    softuart_putchar(0, 'D');
-    softuart_putchar(0, dirmask[i]);
-    softuart_putchar(0, 'C');
-    softuart_putchar(0, cmd);
 
     // --- Not relaying ---
 
@@ -238,49 +241,23 @@ int main ()
 
     // command self
     if (dirmask[i] & SELF) switch(cmd) {
-
-      case RESET:
-        wdt_enable(WDTO_250MS);
-        set_flash(254);
-        for(;;) {}
-        break;
-
-      case BOOT:
-        if (clone_mask & _BV(i)) {
-          softuart_putchar(i, PROGRAM_AVAILABLE);
-          clone_mask &= ~(_BV(i));
-        }
-        break;
+      case BOOT:    boot(i);        break;
+      case CLONE:   clone(i);       break;
+      case SEL:     select(i);      break;
+      case DESEL:   deselect();     break;
+      case BACK:    backtrack(i);   break;
+      case FLOOD:   flood(i);       break;
+      case RESET:   reset();        break;
 
       case PROGRAM_GET:
         addr[i] = 0x00;
+        clone_mask |= _BV(i);
         break;
 
       case PAGE_GET:
         send_page(i, addr[i]);
         addr[i] += SPM_PAGESIZE;
         break;
-
-      case SEL:
-        select(i);
-        break;
-
-      case DESEL:
-        deselect();
-        break;
-
-      case BACK:
-        backtrack(i);
-        break;
-
-      case FLOOD:
-        flood(i);
-        break;
-        /*
-      case EMPTY:
-        empty(softuart_getchar(i) % 8);
-        break;
-        */
 
       case SIG:
         softuart_putchar(i, ACK);
