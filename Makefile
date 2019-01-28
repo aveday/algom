@@ -28,7 +28,7 @@ boot.elf: obj/boot.o obj/softuart.o
 	@${CC} ${CFLAGS} -Wl,--section-start=.text=${BOOTSTART} -o $@ $^
 
 boot: boot.hex
-	echo ${PROGRAMMER} ${MCU}
+	@echo ${PROGRAMMER} ${MCU}
 	@avrdude -p${MCU} -V -U flash:w:$<
 	@avr-size --mcu=${MCU} -C boot.elf
 
@@ -53,7 +53,7 @@ obj/%.o: src/%.c
 	@${CC} ${CFLAGS} -Isrc -MMD -MP -c $< -o $@
 
 flash: image.hex
-	echo ${PROGRAMMER} ${MCU}
+	@echo ${PROGRAMMER} ${MCU}
 	@avrdude -p${MCU} -V -U flash:w:$<
 
 reset:
