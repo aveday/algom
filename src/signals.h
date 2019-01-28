@@ -3,6 +3,7 @@
 #define SIG 'S'
 #define ACK 'A'
 #define SEL '@'
+#define DESEL 'D'
 #define MOVE 'M'
 #define BACK 'B'
 #define FLOOD 'F'

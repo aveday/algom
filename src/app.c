@@ -28,6 +28,11 @@
 #define PREVSET  1
 uint8_t status = 0;
 
+// dirmask macros
+#define DIRMASK  0b10000000
+#define RELAY    0b00100000
+#define SELF     0b00010000
+
 // neighbours
 uint8_t next, prev;
 uint8_t neighbour_mask = 0b0000;
@@ -35,6 +40,7 @@ uint8_t clone_mask = 0b0000;
 
 struct cRGB light = {0, 0, 0};
 
+/*
 void empty (uint8_t n)
 {
   if (!(status & _BV(n)))
@@ -45,54 +51,42 @@ void empty (uint8_t n)
     softuart_putchar(i, n);
   }
 }
+*/
 
-void flood (int8_t src, uint8_t n)
+void flood (int8_t src)
 {
-  if (status & _BV(n))
+  if (status & _BV(PREVSET))
     return;
 
   prev = src;
-  status |= _BV(n);
+  status |= _BV(PREVSET);
   for (uint8_t i = 0; i < 4; ++i) {
     softuart_putchar(i, FLOOD);
-    softuart_putchar(i, n);
   }
 }
 
-void select()
+void select(uint8_t src)
 {
   status |= _BV(SELECTED);
   light.g = 30;
   ws2812_setleds(&light, 1);
   softuart_putchar(prev, BACK);
+  softuart_putchar(src, DESEL);
+}
+
+void deselect()
+{
+  // deselect
+  status &= ~(_BV(SELECTED));
+  light.g = 0;
+  ws2812_setleds(&light, 1);
 }
 
 void backtrack(uint8_t src)
 {
+  // continue backtracking
   next = src;
   softuart_putchar(prev, BACK);
-}
-
-void move(uint8_t dir)
-{
-  // select adjacent node
-  if (status & _BV(SELECTED)) {
-    // prevent falling off edge of world
-    if (!(neighbour_mask & _BV(dir)))
-      return;
-
-    status &= ~(_BV(SELECTED));
-    light.g = 0;
-    ws2812_setleds(&light, 1);
-
-    next = dir;
-    softuart_putchar(dir, SEL);
-
-  // move along path
-  } else {
-    softuart_putchar(next, MOVE);
-    softuart_putchar(next, dir);
-  }
 }
 
 static uint8_t flash_speed = 250;
@@ -171,8 +165,8 @@ int main ()
 
   if (!(START_PIN & _BV(START_BIT))) {
     // floodfill cells to set backtracking direction
-    flood(0, PREVSET);
-    select();
+    flood(0);
+    select(0);
   }
 
   // init flash timer
@@ -180,6 +174,12 @@ int main ()
   //set_flash(225);
 
   uint16_t addr[4];
+  uint8_t dirmask[4] = {
+    DIRMASK | SELF,
+    DIRMASK | SELF,
+    DIRMASK | SELF,
+    DIRMASK | SELF
+  };
 
   wdt_enable(WDTO_1S);
   // loop forever over uart channels
@@ -187,29 +187,62 @@ int main ()
     wdt_reset();
     uint8_t bounce = !(BOUNCE_PIN & _BV(BOUNCE_BIT));
 
-    if (!softuart_kbhit(i))
-      continue;
-    char c = softuart_getchar(i);
-    switch(c) {
+    if (!softuart_kbhit(i)) continue;
+    uint8_t cmd = softuart_getchar(i);
+    softuart_putchar(0, i + ASCII_NUM_START);
 
-      case 'h': move(2); break;
-      case 'j': move(0); break;
-      case 'k': move(3); break;
-      case 'l': move(1); break;
+    // check if dirmask
+    if (cmd & DIRMASK) {
+      dirmask[i] = cmd;
+      continue;
+    }
+
+    // generate appropriate dirmask from user commands
+    switch (cmd) {
+      case 'h': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b0100; break;
+      case 'j': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b0001; break;
+      case 'k': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b1000; break;
+      case 'l': cmd = SEL,   dirmask[i] = DIRMASK | RELAY | 0b0010; break;
+      case 'r': cmd = RESET, dirmask[i] = DIRMASK | RELAY | 0b0010; break;
+    }
+
+    // --- Relaying ---
+
+    if (dirmask[i] & RELAY) {
+      softuart_putchar(0, '>');
+      if (status & _BV(SELECTED)) {
+        // remove relay mask if node is selected
+        dirmask[i] &= ~RELAY;
+      } else {
+        // otherwise relay command and go to next message
+        softuart_putchar(next, dirmask[i]);
+        softuart_putchar(next, cmd);
+        continue;
+      }
+    }
+
+    softuart_putchar(0, 'D');
+    softuart_putchar(0, dirmask[i]);
+    softuart_putchar(0, 'C');
+    softuart_putchar(0, cmd);
+
+    // --- Not relaying ---
+
+    // command neightbours
+    for (uint8_t d = 0; d < 4; ++d) {
+      if ((dirmask[i] >> d) & 1) {
+        softuart_putchar(d, DIRMASK | SELF);
+        softuart_putchar(d, cmd);
+      }
+    }
+
+    // command self
+    if (dirmask[i] & SELF) switch(cmd) {
 
       case RESET:
         wdt_enable(WDTO_250MS);
         set_flash(254);
         for(;;) {}
-        break;
-
-      case 'e':
-        softuart_putchar(1, 'r');
-        break;
-
-      case 'r':
-        softuart_putchar(1, RESET);
-        clone_mask |= _BV(1);
         break;
 
       case BOOT:
@@ -228,12 +261,12 @@ int main ()
         addr[i] += SPM_PAGESIZE;
         break;
 
-      case MOVE:
-        move(softuart_getchar(i));
+      case SEL:
+        select(i);
         break;
 
-      case SEL:
-        select();
+      case DESEL:
+        deselect();
         break;
 
       case BACK:
@@ -241,11 +274,13 @@ int main ()
         break;
 
       case FLOOD:
-        flood(i, softuart_getchar(i) % 8);
+        flood(i);
         break;
+        /*
       case EMPTY:
         empty(softuart_getchar(i) % 8);
         break;
+        */
 
       case SIG:
         softuart_putchar(i, ACK);
@@ -263,6 +298,9 @@ int main ()
         softuart_putchar(bounce ? i : (i + n) % 4, PING);
         break;
     }
+
+    // reset dirmask to default (self)
+    dirmask[i] = DIRMASK | SELF;
   }
 }
 
