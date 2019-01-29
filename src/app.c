@@ -231,7 +231,7 @@ int main ()
 
     // --- Not relaying ---
 
-    // command neightbours
+    // command neighbours
     for (uint8_t d = 0; d < 4; ++d) {
       if ((dirmask[i] >> d) & 1) {
         softuart_putchar(d, DIRMASK | SELF);
