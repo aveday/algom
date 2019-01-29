@@ -40,6 +40,8 @@ uint8_t clone_mask = 0b0000;
 
 struct cRGB light = {0, 0, 0};
 
+uint16_t clone_address[4];
+
 static uint8_t flash_speed = 250;
 void set_flash (uint8_t speed) 
 {
@@ -71,6 +73,7 @@ void flood (int8_t src)
 void boot(uint8_t src)
 {
   if (clone_mask & _BV(src)) {
+    clone_address[src] = 0x00;
     softuart_putchar(src, PROGRAM_AVAILABLE);
     clone_mask &= ~(_BV(src));
   }
@@ -179,7 +182,6 @@ int main ()
   // init flash timer
   TIMSK |= _BV(TOIE0); // enable timer0 overflow interrupt
 
-  uint16_t addr[4];
   uint8_t dirmask[4] = {
     DIRMASK | SELF,
     DIRMASK | SELF,
@@ -250,13 +252,12 @@ int main ()
       case RESET:   reset();        break;
 
       case PROGRAM_GET:
-        addr[i] = 0x00;
         clone_mask |= _BV(i);
         break;
 
       case PAGE_GET:
-        send_page(i, addr[i]);
-        addr[i] += SPM_PAGESIZE;
+        send_page(i, clone_address[i]);
+        clone_address[i] += SPM_PAGESIZE;
         break;
 
       case SIG:
