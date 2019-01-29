@@ -6,6 +6,7 @@ GREY="\033[0;37m"
 YELLOW="\033[0;34m"
 
 tput civis
+trap "tput cnorm" EXIT
 
 cat /dev/ttyUSB0 | while read -n1 c; do
   echo -e -n "$GREY[$(date +%T)] $YELLOW"
